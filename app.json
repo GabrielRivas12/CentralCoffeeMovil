@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "CentralCoffee",
+    "slug": "centralcoffee",
+    "scheme": "centralcoffee",
+    "owner": "gabrielr12",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDLHMLnJVzvuMiVoLrVPhIGiX1Y7Zul8FA"
+        }
+      },
+      "googleServicesFile": "./src/Services/google-services.json",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": false,
+      "package": "com.gabrielr12.centralcoffee"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-web-browser",
+      "expo-image-picker"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "4c89cea2-2887-4307-be2d-91f6c5b76d05"
+      }
+    }
+  }
+}

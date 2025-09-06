@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "958973898936",
+    "project_id": "centralcoffee-2910d",
+    "storage_bucket": "centralcoffee-2910d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:958973898936:android:58d5eba408d4bdb15b444d",
+        "android_client_info": {
+          "package_name": "com.gabrielr12.centralcoffee"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "958973898936-q2ddijbqhbhs07358ahij8bmg1o919b3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.gabrielr12.centralcoffee",
+            "certificate_hash": "627312fb2129d0ca90b33bd89b2db719481af753"
+          }
+        },
+        {
+          "client_id": "958973898936-1qq10di6u0uf71ju0acsraeli5rmhdhk.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAK6GzJa9drol-x6UIQ4Yd3KV5bFcr0tfE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "958973898936-1qq10di6u0uf71ju0acsraeli5rmhdhk.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
