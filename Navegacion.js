@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity } from 'react-native';
+import { View, Text, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import Feather from '@expo/vector-icons/Feather';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -27,6 +28,7 @@ import Asistente from './src/Screens/IA/Asistente';
 import IAScanner from './src/Screens/AnalizarCultivo/ScannearImagen';
 import Login from './src/Screens/Login/InicioSesion';
 import Registro from './src/Screens/Login/Registro';
+import ScaneerOferta from './src/Screens/Ofertas/ScaneerOferta';
 
 import { getAuth } from 'firebase/auth';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
@@ -34,29 +36,85 @@ import { getFirestore, doc, getDoc } from 'firebase/firestore';
 const Stack = createStackNavigator();
 const Drawer = createDrawerNavigator();
 
+// Funciones para cache
+const saveUserToCache = async (userData) => {
+  try {
+    await AsyncStorage.setItem('cachedUser', JSON.stringify(userData));
+  } catch (error) {
+    console.log('Error guardando cache:', error);
+  }
+};
+
+const getUserFromCache = async () => {
+  try {
+    const cachedUser = await AsyncStorage.getItem('cachedUser');
+    return cachedUser ? JSON.parse(cachedUser) : null;
+  } catch (error) {
+    console.log('Error leyendo cache:', error);
+    return null;
+  }
+};
+
+const clearUserCache = async () => {
+  try {
+    await AsyncStorage.removeItem('cachedUser');
+  } catch (error) {
+    console.log('Error limpiando cache:', error);
+  }
+};
+
 export default function Navegacion() {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
+    const { modoOscuro } = usarTema();
 
     useEffect(() => {
         const fetchUser = async () => {
+            // Primero intentar cargar del cache
+            const cachedUser = await getUserFromCache();
+            if (cachedUser) {
+                setUser(cachedUser);
+                setLoading(false);
+            }
+
             const authUser = getAuth().currentUser;
             if (!authUser) {
                 setLoading(false);
                 return;
             }
-            const docRef = doc(getFirestore(), 'usuarios', authUser.uid);
-            const docSnap = await getDoc(docRef);
+            
+            try {
+                const docRef = doc(getFirestore(), 'usuarios', authUser.uid);
+                const docSnap = await getDoc(docRef);
 
-            if (docSnap.exists()) {
-                setUser({ uid: authUser.uid, ...docSnap.data() });
+                if (docSnap.exists()) {
+                    const userData = { uid: authUser.uid, ...docSnap.data() };
+                    setUser(userData);
+                    // Guardar en cache para uso offline
+                    await saveUserToCache(userData);
+                }
+            } catch (error) {
+                console.log('Error fetching user from Firestore, using cached data:', error);
+                // Si hay error de conexión, usar datos del cache si existen
+                if (!cachedUser) {
+                    setUser(null);
+                }
             }
             setLoading(false);
         };
         fetchUser();
     }, []);
 
-    if (loading) return <Text></Text>;
+    if (loading) return (
+        <View style={{ 
+            flex: 1, 
+            justifyContent: 'center', 
+            alignItems: 'center',
+            backgroundColor: modoOscuro ? '#000' : '#fff' 
+        }}>
+            <ActivityIndicator size="large" color="#ED6D4A" />
+        </View>
+    );
 
     return (
         <NavigationContainer>
@@ -67,7 +125,6 @@ export default function Navegacion() {
                     </Stack.Screen>
                 </Stack.Navigator>
             ) : (
-
                 <Stack.Navigator screenOptions={{ headerShown: false }}>
                     <Stack.Screen name="Login">
                         {props => <Login {...props} setUser={setUser} />}
@@ -75,10 +132,8 @@ export default function Navegacion() {
                     <Stack.Screen name="Registro">
                         {props => <Registro {...props} setUser={setUser} />}
                     </Stack.Screen>
-
                 </Stack.Navigator>
             )}
-
         </NavigationContainer>
     );
 }
@@ -91,15 +146,14 @@ function getDrawerScreens(rol) {
         { name: 'Bandeja de entrada', component: StackChat, icon: <MaterialIcons name="chat-bubble-outline" size={15} /> },
         { name: 'QR', component: StackQR, icon: <Feather name="layers" size={15} /> },
         { name: 'Mapa', component: StackMapa, icon: <Feather name="map" size={15} /> },
-        { name: 'IA', component: Asistente, icon: <Feather name="cpu" size={15} /> },
-        { name: 'Analizar cultivo', component: IAScanner, icon: <Feather name="image" size={15} /> },
+        { name: 'Asistente IA', component: Asistente, icon: <Feather name="cpu" size={15} /> },
         { name: 'Perfil', component: StackUsuario, icon: <Feather name="user" size={15} /> },
     ];
 
     if (rol === 'Comerciante') return allScreens;
     if (rol === 'Comprador')
         return allScreens.filter(screen =>
-            ['Ofertas', 'Mapa', 'IA', 'Analizar cultivo', 'Bandeja de entrada', 'Perfil'].includes(screen.name)
+            ['Ofertas', 'Mapa', 'Asistente IA', 'Bandeja de entrada', 'Perfil'].includes(screen.name)
         );
 
     // Pantalla por defecto para roles desconocidos
@@ -115,7 +169,8 @@ function DrawerNavigate({ user, setUser }) {
     const handleLogout = async () => {
         try {
             await getAuth().signOut();
-            setUser(null); // Esto hace que Navegacion muestre la pantalla de Login
+            await clearUserCache(); // Limpiar cache al cerrar sesión
+            setUser(null);
         } catch (error) {
             console.log('Error al cerrar sesión:', error);
         }
@@ -197,7 +252,7 @@ function CustomDrawerContent({ handleLogout, ...props }) {
                 </Text>
             </TouchableOpacity>
             <TouchableOpacity
-                onPress={handleLogout} // <-- aquí
+                onPress={handleLogout}
                 style={{ flexDirection: 'row', alignItems: 'center', padding: 15, borderTopWidth: 1, borderColor: modoOscuro ? '#444' : '#ccc' }}
             >
                 <Feather name="log-out" size={18} color={modoOscuro ? '#fff' : '#666'} />
@@ -206,8 +261,6 @@ function CustomDrawerContent({ handleLogout, ...props }) {
         </DrawerContentScrollView>
     );
 }
-
-
 
 function StackOfertas({ user }) {
     return (
@@ -227,6 +280,7 @@ function StackOfertas({ user }) {
             </Stack.Screen>
             <Stack.Screen name='Crear' component={CrearOferta} />
             <Stack.Screen name='Informacion' component={DetallesOferta} />
+            <Stack.Screen name='EscanearQR' component={ScaneerOferta} /> 
             <Stack.Screen name='Perfil' component={PerfilUsuario} />
             <Stack.Screen
                 name='Chat'
@@ -264,7 +318,7 @@ function StackEditar() {
             screenOptions={({ route }) => ({
                 headerShown: route.name !== 'ScreenEditar',
                 headerStyle: {
-                    backgroundColor: '#ED6D4A', // color header
+                    backgroundColor: '#ED6D4A',
                 },
             })}
         >
@@ -278,11 +332,10 @@ function StackEditar() {
 function StackMapa({ user }) {
     return (
         <Stack.Navigator initialRouteName='ScreenMapa'
-
             screenOptions={({ route }) => ({
                 headerShown: route.name !== 'ScreenMapa',
                 headerStyle: {
-                    backgroundColor: '#ED6D4A', // color header
+                    backgroundColor: '#ED6D4A',
                 },
             })}
         >
@@ -291,8 +344,6 @@ function StackMapa({ user }) {
             </Stack.Screen>
             <Stack.Screen name='Crear Marcador' component={CrearMarcador} />
             <Stack.Screen name='Más Información' component={DetallesMapa} />
-
-
         </Stack.Navigator>
     )
 }
@@ -307,8 +358,7 @@ function StackQR() {
                 },
             })}
         >
-            <Stack.Screen name='ScreenQR' component={QRLista}>
-            </Stack.Screen>
+            <Stack.Screen name='ScreenQR' component={QRLista} />
             <Stack.Screen name='Informacion' component={DetallesOferta} />
         </Stack.Navigator>
     )
@@ -320,7 +370,7 @@ function StackUsuario() {
             screenOptions={({ route }) => ({
                 headerShown: route.name !== 'ScreenUsuario',
                 headerStyle: {
-                    backgroundColor: '#ED6D4A', // color header
+                    backgroundColor: '#ED6D4A',
                 },
             })}
         >
@@ -347,7 +397,7 @@ function StackUsuario() {
                             </Text>
                         </View>
                     ),
-                    headerTintColor: '#000', // color de los íconos en el header
+                    headerTintColor: '#000',
                 })}
             />
             <Stack.Screen name='Editar Informacion' component={EditarPerfil} />
@@ -432,6 +482,3 @@ function StackChat() {
         </Stack.Navigator>
     );
 }
-
-
-
