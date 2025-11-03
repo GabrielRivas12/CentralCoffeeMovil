@@ -7,9 +7,6 @@ import * as FileSystem from 'expo-file-system';
 import { decode as atob } from 'base-64';
 import { supabase } from '../Services/SupaBase';
 
-// URL base de tu página web - CAMBIA ESTO POR TU DOMINIO REAL
-const WEB_APP_BASE_URL = 'https://tudominio.com/oferta';
-
 export const generarYSubirQR = async (oferta, setQrRender, setQrImageUrl, setModalVisible) => {
   const nombreQR = `${oferta.id}.png`;
 
@@ -26,7 +23,8 @@ export const generarYSubirQR = async (oferta, setQrRender, setQrImageUrl, setMod
     return;
   }
 
-  const fullQRData = {
+  // Crear objeto JSON con todos los datos de la oferta
+  const qrData = {
     id: oferta.id,
     titulo: oferta.titulo,
     tipoCafe: oferta.tipoCafe,
@@ -40,23 +38,15 @@ export const generarYSubirQR = async (oferta, setQrRender, setQrImageUrl, setMod
     ofertaLibra: oferta.ofertaLibra,
     imagen: oferta.imagen,
     lugarSeleccionado: oferta.lugarSeleccionado,
-    userId: oferta.userId
+    userId: oferta.userId,
+    timestamp: new Date().toISOString(),
+    tipo: 'oferta_cafe' // Identificador del tipo de datos
   };
 
-  // Crear URL con parámetros
-  const urlParams = new URLSearchParams();
-  
-  // Agregar cada campo como parámetro codificado
-  Object.keys(fullQRData).forEach(key => {
-    if (fullQRData[key] !== null && fullQRData[key] !== undefined && fullQRData[key] !== '') {
-      urlParams.append(key, encodeURIComponent(fullQRData[key]));
-    }
-  });
+  // Convertir el JSON a string para el QR
+  const jsonString = JSON.stringify(qrData);
 
-  // Construir la URL final
-  const qrUrl = `${WEB_APP_BASE_URL}?${urlParams.toString()}`;
-
-  console.log('URL generada para QR:', qrUrl); // Para verificar
+  console.log('Datos JSON para QR:', jsonString);
 
   const tempRef = React.createRef();
 
@@ -102,10 +92,53 @@ export const generarYSubirQR = async (oferta, setQrRender, setQrImageUrl, setMod
 
     return (
       <View ref={tempRef} collapsable={false} style={{ position: 'absolute', top: -1000, left: -1000 }}>
-        <QRCode value={qrUrl} size={200} />
+        <QRCode value={jsonString} size={200} />
       </View>
     );
   };
 
   setQrRender(<TempQRRenderer />);
+};
+
+// Función para decodificar los datos del QR
+export const decodificarDatosQR = (data) => {
+  try {
+    // Si los datos vienen como string JSON
+    if (typeof data === 'string') {
+      // Intentar parsear como JSON directamente
+      const parsedData = JSON.parse(data);
+      
+      // Verificar si tiene la estructura esperada
+      if (parsedData && parsedData.tipo === 'oferta_cafe') {
+        return parsedData;
+      }
+      
+      // Si no tiene el tipo, pero tiene campos básicos de oferta
+      if (parsedData && parsedData.id && parsedData.titulo) {
+        return parsedData;
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.log('Error decodificando datos QR:', error);
+    
+    // Intentar limpiar y parsear si hay caracteres extraños
+    try {
+      const cleanedData = data.replace(/[^\x20-\x7E]/g, '');
+      const parsedData = JSON.parse(cleanedData);
+      return parsedData;
+    } catch (secondError) {
+      console.log('Error en segundo intento de parseo:', secondError);
+      return null;
+    }
+  }
+};
+
+// Función para validar la estructura de los datos del QR
+export const validarDatosOferta = (datos) => {
+  if (!datos) return false;
+  
+  const camposRequeridos = ['id', 'titulo', 'tipoCafe', 'ofertaLibra'];
+  return camposRequeridos.every(campo => datos[campo] !== undefined && datos[campo] !== null);
 };
