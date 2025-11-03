@@ -1,16 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { Alert, Animated } from 'react-native';
 
-// Importar todas las constantes desde un solo archivo
-import { 
-  GREETINGS, 
-  THANKS_AND_GOODBYE, 
-  FORBIDDEN_TOPICS, 
-  COFFEE_ADVISOR_URL, 
-  COFFEE_STATS_URL 
+import { GREETINGS, THANKS_AND_GOODBYE, FORBIDDEN_TOPICS_PATTERNS,
+  ALLOWED_COFFEE_TOPICS, COFFEE_ADVISOR_URL, COFFEE_STATS_URL, SUGGESTED_TOPICS
 } from './RestriccionesIA';
 
-// Función para limpiar texto (quitar acentos y caracteres especiales)
+// Función para limpiar texto
 const cleanText = (text) => {
   if (!text || typeof text !== 'string') return '';
   
@@ -19,6 +14,7 @@ const cleanText = (text) => {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^\w\s]/gi, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
 };
 
@@ -49,30 +45,195 @@ export const isThanksOrGoodbye = (message) => {
   });
 };
 
-// Función para verificar si contiene temas prohibidos
-export const containsForbiddenTopic = (message) => {
-  const cleanMessage = cleanText(message);
-  const words = cleanMessage.split(/\s+/);
+// Función para analizar contexto de la conversación
+const analyzeConversationContext = (currentMessage, previousMessages = []) => {
+  const cleanCurrent = cleanText(currentMessage);
   
-  return FORBIDDEN_TOPICS.some(topic => {
+  // 1. Buscar palabras de café en el mensaje actual
+  const hasCurrentCoffee = ALLOWED_COFFEE_TOPICS.some(topic => {
     const cleanTopic = cleanText(topic);
-    return words.some(word => word === cleanTopic);
+    const regex = new RegExp(`\\b${cleanTopic}\\b`, 'i');
+    return regex.test(cleanCurrent);
   });
+  
+  // 2. Analizar mensajes anteriores para contexto
+  let hasPreviousCoffeeContext = false;
+  let conversationTopics = [];
+  
+  // Revisar últimos 3-5 mensajes para contexto
+  const recentMessages = previousMessages.slice(-5);
+  recentMessages.forEach(msg => {
+    const cleanMsg = cleanText(msg.text);
+    ALLOWED_COFFEE_TOPICS.forEach(topic => {
+      const cleanTopic = cleanText(topic);
+      const regex = new RegExp(`\\b${cleanTopic}\\b`, 'i');
+      if (regex.test(cleanMsg)) {
+        hasPreviousCoffeeContext = true;
+        if (!conversationTopics.includes(topic)) {
+          conversationTopics.push(topic);
+        }
+      }
+    });
+  });
+  
+  // 3. Detectar preguntas implícitas sobre el tema actual
+  const isFollowUpQuestion = 
+    // Palabras que indican continuación
+    /\b(y|además|también|otro|otra|más|sobre|respecto|acerca)\b/i.test(cleanCurrent) ||
+    // Preguntas sobre "eso", "eso", "lo mismo", etc.
+    /\b(eso|esto|aquello|lo mismo|el mismo|la misma)\b/i.test(cleanCurrent) ||
+    // Preguntas que empiezan con "qué", "cómo", "cuándo", etc. en contexto de café
+    (/^(qué|cómo|cuándo|dónde|por qué|cuál|quién)\b/i.test(cleanCurrent) && hasPreviousCoffeeContext);
+  
+  return {
+    hasCurrentCoffee,
+    hasPreviousCoffeeContext,
+    conversationTopics,
+    isFollowUpQuestion,
+    isInCoffeeContext: hasCurrentCoffee || (hasPreviousCoffeeContext && isFollowUpQuestion)
+  };
 };
 
-// Hook principal para la lógica del asistente
+// FUNCIÓN Detectar temas prohibidos con contexto más amplio
+export const containsForbiddenTopic = (message, previousMessages = []) => {
+  const cleanMessage = cleanText(message);
+  console.log('🔍 Analizando mensaje:', cleanMessage);
+  
+  // Analizar contexto de conversación
+  const context = analyzeConversationContext(message, previousMessages);
+  console.log('📊 Contexto analizado:', context);
+  
+  // REGLA 1: Saludos y despedidas siempre permitidos
+  if (isGreeting(message) || isThanksOrGoodbye(message)) {
+    console.log('✅ Saludo/Despedida - PERMITIDO');
+    return false;
+  }
+  
+  // REGLA 2: Si está en contexto de café (nicaragua o internacional), es más permisivo
+  if (context.isInCoffeeContext) {
+    console.log('✅ En contexto de café - VERIFICADO');
+    
+    // En contexto de café, solo bloquear temas MUY prohibidos
+    const hasStrongForbidden = FORBIDDEN_TOPICS_PATTERNS.some(pattern => {
+      // Temas sensibles que NUNCA se permiten
+      const sensitiveTopics = ['sexo', 'violencia', 'drogas', 'arma', 'pistola', 'matar', 'asesinato'];
+      
+      if (sensitiveTopics.includes(pattern.topic)) {
+        const hasSensitive = pattern.keywords?.some(keyword => {
+          const cleanKeyword = cleanText(keyword);
+          const regex = new RegExp(`\\b${cleanKeyword}\\b`, 'i');
+          return regex.test(cleanMessage);
+        });
+        
+        if (hasSensitive) {
+          console.log(`❌ Tema sensible detectado: ${pattern.topic}`);
+          return true;
+        }
+      }
+      return false;
+    });
+    
+    if (hasStrongForbidden) {
+      console.log('❌ Tema sensible en contexto de café - RECHAZADO');
+      return true;
+    }
+    
+    console.log('✅ Mensaje en contexto de café - PERMITIDO');
+    return false;
+  }
+  
+  // Fuera de contexto, verificar que tenga relación con café (nicaragua o internacional)
+  const hasCoffeeRelation = ALLOWED_COFFEE_TOPICS.some(topic => {
+    const cleanTopic = cleanText(topic);
+    const regex = new RegExp(`\\b${cleanTopic}\\b`, 'i');
+    return regex.test(cleanMessage);
+  });
+  
+  if (!hasCoffeeRelation) {
+    console.log('❌ Sin relación con café y sin contexto - RECHAZADO');
+    return true;
+  }
+  
+  // REGLA 4: Si tiene relación con café, verificar que no mezcle con temas prohibidos fuertes
+  const hasForbiddenMix = FORBIDDEN_TOPICS_PATTERNS.some(pattern => {
+    const { topic, keywords, phrases, exactMatches } = pattern;
+    
+    // Verificar coincidencias exactas (siempre prohibidas)
+    if (exactMatches && exactMatches.some(exact => {
+      const cleanExact = cleanText(exact);
+      const regex = new RegExp(`\\b${cleanExact}\\b`, 'i');
+      return regex.test(cleanMessage);
+    })) {
+      console.log(`❌ Coincidencia exacta prohibida: ${topic}`);
+      return true;
+    }
+    
+    // Verificar múltiples palabras clave del mismo tema prohibido
+    if (keywords) {
+      const foundKeywords = keywords.filter(keyword => {
+        const cleanKeyword = cleanText(keyword);
+        const regex = new RegExp(`\\b${cleanKeyword}\\b`, 'i');
+        return regex.test(cleanMessage);
+      });
+      
+      // Si encuentra 2+ palabras de un tema prohibido, rechazar
+      if (foundKeywords.length >= 2) {
+        console.log(`❌ Múltiples palabras prohibidas: ${topic} - ${foundKeywords}`);
+        return true;
+      }
+    }
+    
+    return false;
+  });
+  
+  if (hasForbiddenMix) {
+    console.log('❌ Mezcla de café con tema prohibido - RECHAZADO');
+    return true;
+  }
+  
+  console.log('✅ Mensaje relacionado con café - PERMITIDO');
+  return false;
+};
+
+// Hook principal con contexto
 export const useCoffeeAssistantLogic = () => {
   // Estados principales
   const [messages, setMessages] = useState([]);
   const [userInput, setUserInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [conversationContext, setConversationContext] = useState({
+    hasCoffeeTopic: false,
+    lastTopics: [],
+    isCoffeeConversation: false
+  });
 
   // Referencias para animaciones
   const dot1 = useRef(new Animated.Value(0)).current;
   const dot2 = useRef(new Animated.Value(0)).current;
   const dot3 = useRef(new Animated.Value(0)).current;
 
-  // Efecto para la animación de los dots de typing
+  // actualizar contexto cuando cambian los mensajes
+  useEffect(() => {
+    if (messages.length > 0) {
+      const lastUserMessages = messages
+        .filter(msg => msg.sender === 'user')
+        .slice(-3)
+        .map(msg => msg.text);
+      
+      const context = analyzeConversationContext(
+        lastUserMessages[lastUserMessages.length - 1] || '', 
+        lastUserMessages
+      );
+      
+      setConversationContext({
+        hasCoffeeTopic: context.hasPreviousCoffeeContext,
+        lastTopics: context.conversationTopics,
+        isCoffeeConversation: context.hasPreviousCoffeeContext
+      });
+    }
+  }, [messages]);
+
+  // Animación de typing
   useEffect(() => {
     if (isTyping) {
       const animateDots = () => {
@@ -101,42 +262,55 @@ export const useCoffeeAssistantLogic = () => {
       
       animateDots();
     } else {
-      // Resetear animaciones cuando no está typing
       dot1.setValue(0);
       dot2.setValue(0);
       dot3.setValue(0);
     }
   }, [isTyping, dot1, dot2, dot3]);
 
-  // Función para manejar respuestas automáticas (saludos, agradecimientos, temas prohibidos)
+  // respuestas automáticas con contexto
   const handleAutomaticResponse = (message) => {
-    console.log('Procesando mensaje:', message);
-    console.log('¿Es saludo?', isGreeting(message));
-    console.log('¿Es agradecimiento?', isThanksOrGoodbye(message));
-    console.log('¿Contiene tema prohibido?', containsForbiddenTopic(message));
-
-    // Verificar temas prohibidos
-    if (containsForbiddenTopic(message)) {
-      console.log('Tema prohibido detectado');
-      return "Lo siento, sólo puedo ofrecer información sobre café de Nicaragua, su producción, trazabilidad, tueste y comercio.";
-    }
-
+    console.log('Mensaje:', message);
+    console.log('Contexto actual:', conversationContext);
+    
+    const previousUserMessages = messages
+      .filter(msg => msg.sender === 'user')
+      .map(msg => msg.text);
+    
+    const forbidden = containsForbiddenTopic(message, previousUserMessages);
+    console.log('¿Contiene tema prohibido?', forbidden);
+    
     // Verificar si es un saludo
     if (isGreeting(message)) {
-      console.log('Saludo detectado');
-      return "¡Hola! 👋 Soy CentralCoffeeIA, tu asistente especializado en café de Nicaragua. ¿En qué puedo ayudarte hoy? Puedo brindarte información sobre:\n\n• Producción de café\n• Trazabilidad\n• Tipos de tueste\n• Comercio y exportación\n• Estadísticas del sector\n\n¿Qué te gustaría saber?";
+      const topicsText = SUGGESTED_TOPICS.map(topic => `• ${topic}`).join('\n');
+      return `¡Hola! 👋 Soy CentralCoffeeIA, tu asistente especializado en el café nicaragüense. 
+
+Puedo ayudarte con temas como:
+
+${topicsText}
+
+¿En qué aspecto del café te gustaría que te ayude hoy? ☕`;
     }
 
     // Verificar si es agradecimiento o despedida
     if (isThanksOrGoodbye(message)) {
-      console.log('Agradecimiento o despedida detectada');
-      return "¡De nada! 😊 Ha sido un placer ayudarte. Si necesitas más información sobre el café de Nicaragua, no dudes en preguntarme. ¡Que tengas un excelente día! ☕";
+      return "¡De nada! 😊 Ha sido un placer ayudarte. Si tienes más preguntas sobre café nicaragüense o internacional, aquí estaré. ¡Que tengas un excelente día! ☕";
+    }
+
+    // Verificar temas prohibidos CON CONTEXTO
+    if (forbidden) {
+      // Mensaje más contextual
+      if (conversationContext.hasCoffeeTopic) {
+        return "Noto que estamos hablando de café. Me centro específicamente en aspectos técnicos y comerciales del café, tanto de Nicaragua como a nivel mundial. ¿Podrías reformular tu pregunta manteniendo el enfoque en el café?";
+      }
+      
+      const topicsText = SUGGESTED_TOPICS.slice(0, 5).map(topic => `• ${topic}`).join('\n');
+      return `Lo siento, sólo puedo ofrecer información especializada sobre café`;
     }
 
     return null;
   };
 
-  // Función para enviar mensaje a la API
   const sendMessageToAPI = async (message) => {
     let url, body;
     
@@ -166,12 +340,10 @@ export const useCoffeeAssistantLogic = () => {
     }
   };
 
-  // Función principal para enviar mensajes
   const sendMessage = async () => {
     const message = userInput.trim();
     if (!message) return;
 
-    // Agregar mensaje del usuario
     const userMessage = { 
       id: Date.now(), 
       text: message, 
@@ -182,7 +354,6 @@ export const useCoffeeAssistantLogic = () => {
     setUserInput('');
     setIsTyping(true);
 
-    // Verificar respuestas automáticas
     const automaticResponse = handleAutomaticResponse(message);
     
     if (automaticResponse) {
@@ -199,7 +370,6 @@ export const useCoffeeAssistantLogic = () => {
       return;
     }
 
-    // Si no es respuesta automática, consultar la API
     try {
       const aiResponse = await sendMessageToAPI(message);
       
@@ -229,7 +399,6 @@ export const useCoffeeAssistantLogic = () => {
     }
   };
 
-  // Limpiar chat
   const clearChat = () => {
     Alert.alert(
       'Limpiar chat',
@@ -238,7 +407,14 @@ export const useCoffeeAssistantLogic = () => {
         { text: 'Cancelar', style: 'cancel' },
         { 
           text: 'Limpiar', 
-          onPress: () => setMessages([]),
+          onPress: () => {
+            setMessages([]);
+            setConversationContext({
+              hasCoffeeTopic: false,
+              lastTopics: [],
+              isCoffeeConversation: false
+            });
+          },
           style: 'destructive'
         },
       ]
@@ -246,21 +422,17 @@ export const useCoffeeAssistantLogic = () => {
   };
 
   return {
-    // Estados
     messages,
     userInput,
     setUserInput,
     isTyping,
-    
-    // Referencias de animación
     dot1,
     dot2,
     dot3,
-    
-    // Funciones
     sendMessage,
     clearChat,
-    setMessages
+    setMessages,
+    conversationContext 
   };
 };
 

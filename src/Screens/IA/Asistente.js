@@ -33,7 +33,7 @@ const CoffeeAssistant = () => {
     }
   }, [messages, isTyping]);
 
-  // Colores basados en el tema
+  // Colores basados en el tema - CORREGIDOS
   const colors = {
     primary: '#ff5722',
     secondary: 'red',
@@ -42,73 +42,16 @@ const CoffeeAssistant = () => {
     dark: '#121212',
     chatUserBg: modoOscuro ? '#f8dbd7' : '#f8dbd7',
     chatAiBg: modoOscuro ? '#2d2d2d' : '#e8e8e8',
-    textDark: modoOscuro ? '#000' : '#000',
-    textLight: modoOscuro ? '#fff' : '#000',
+    
+    // COLORES CORREGIDOS PARA MODO OSCURO
+    textDark: modoOscuro ? '#ffffff' : '#000000',
+    textLight: modoOscuro ? '#ffffff' : '#000000',
     inputBg: modoOscuro ? '#1e1e1e' : '#ffffff',
     inputBorder: modoOscuro ? '#444' : '#ccc',
     containerBg: modoOscuro ? '#121212' : '#f5f5f5',
   };
 
-  // Renderizar mensaje
-  const renderMessage = (message) => (
-    <View
-      key={message.id}
-      style={[
-        styles.message,
-        message.sender === 'user' ? styles.userMessage : styles.aiMessage,
-        {
-          backgroundColor: message.sender === 'user' ? colors.chatUserBg : colors.chatAiBg,
-        }
-      ]}
-    >
-      <Text style={[
-        message.sender === 'user' ? styles.userText : styles.aiText,
-        {
-          color: message.sender === 'user' ? colors.textDark : colors.textLight,
-        }
-      ]}>
-        {message.text}
-      </Text>
-    </View>
-  );
-
-  // Indicador de typing
-  const renderTypingIndicator = () => {
-    return (
-      <View style={[styles.message, styles.aiMessage, { backgroundColor: colors.chatAiBg }]}>
-        <View style={styles.typingDots}>
-          <Animated.View
-            style={[
-              styles.typingDot,
-              {
-                backgroundColor: colors.textLight,
-                opacity: dot1
-              }
-            ]}
-          />
-          <Animated.View
-            style={[
-              styles.typingDot,
-              {
-                backgroundColor: colors.textLight,
-                opacity: dot2
-              }
-            ]}
-          />
-          <Animated.View
-            style={[
-              styles.typingDot,
-              {
-                backgroundColor: colors.textLight,
-                opacity: dot3
-              }
-            ]}
-          />
-        </View>
-      </View>
-    );
-  };
-
+  // ESTILOS DENTRO DEL COMPONENTE
   const styles = StyleSheet.create({
     container: {
       flex: 1,
@@ -236,6 +179,66 @@ const CoffeeAssistant = () => {
       backgroundColor: modoOscuro ? '#444' : '#ccc',
     },
   });
+
+  // Renderizar mensaje
+  const renderMessage = (message) => (
+    <View
+      key={message.id}
+      style={[
+        styles.message,
+        message.sender === 'user' ? styles.userMessage : styles.aiMessage,
+        {
+          backgroundColor: message.sender === 'user' ? colors.chatUserBg : colors.chatAiBg,
+        }
+      ]}
+    >
+      <Text style={[
+        message.sender === 'user' ? styles.userText : styles.aiText,
+        {
+          color: message.sender === 'user' ? '#000000' : colors.textLight,
+        }
+      ]}>
+        {message.text}
+      </Text>
+    </View>
+  );
+
+  // Indicador de typing
+  const renderTypingIndicator = () => {
+    return (
+      <View style={[styles.message, styles.aiMessage, { backgroundColor: colors.chatAiBg }]}>
+        <View style={styles.typingDots}>
+          <Animated.View
+            style={[
+              styles.typingDot,
+              {
+                backgroundColor: colors.textLight,
+                opacity: dot1
+              }
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.typingDot,
+              {
+                backgroundColor: colors.textLight,
+                opacity: dot2
+              }
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.typingDot,
+              {
+                backgroundColor: colors.textLight,
+                opacity: dot3
+              }
+            ]}
+          />
+        </View>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>

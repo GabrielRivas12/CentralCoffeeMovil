@@ -1,38 +1,51 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Image, StatusBar, Modal, TextInput } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  Image,
+  StatusBar,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  ScrollView,
+  Platform,
+} from 'react-native';
 import InputText from '../../Components/TextInput';
 import Boton from '../../Components/Boton';
-import * as WebBrowser from 'expo-web-browser';
 import { auth, appFirebase } from '../../Services/Firebase';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
 import { IniciarLogin } from '../../Containers/IniciarSesion';
 import { enviarRecuperacion, IniciarTemporizador } from '../../Containers/RecuperarCuenta';
 import { usarTema } from '../../Containers/TemaApp';
-
 import { getFirestore } from 'firebase/firestore';
 
-const db = getFirestore(appFirebase);
+import * as WebBrowser from 'expo-web-browser';
 
+const db = getFirestore(appFirebase);
 WebBrowser.maybeCompleteAuthSession();
 
 export default function Login({ navigation, setUser }) {
-
   const { modoOscuro } = usarTema();
 
   const [Correo, setCorreo] = useState('');
   const [Contraseña, setContraseña] = useState('');
-
   const [bloquearBoton, setBloquearBoton] = useState(false);
   const [tiempoRestante, setTiempoRestante] = useState(0);
-
   const [modalVisible, setModalVisible] = useState(false);
   const [correoReset, setCorreoReset] = useState('');
 
   return (
-    <View style={[styles.container, modoOscuro ? styles.containerOscuro : styles.containerClaro]}>
-      <StatusBar backgroundColor='#F1A89B' barStyle='light-content' />
-      <SafeAreaView style={{ backgroundColor: '#F1A89B', flex: 1, alignItems: 'center' }}>
+    <View
+      style={[
+        styles.container,
+        modoOscuro ? styles.containerOscuro : styles.containerClaro,
+      ]}
+    >
+      <StatusBar backgroundColor="#F1A89B" barStyle="light-content" />
+
+      <SafeAreaView style={styles.bannerSafeArea}>
         <View style={styles.containerBanner}>
           <View style={styles.bannerContent}>
             <View style={styles.logoContainer}>
@@ -44,62 +57,115 @@ export default function Login({ navigation, setUser }) {
             <Text style={styles.bannerTexto}>Donde el café une historias</Text>
           </View>
         </View>
-
       </SafeAreaView>
-      <View style={styles.containerCuerpo}>
 
-        <Text style={[styles.bienvenido, modoOscuro ? styles.labelOscuro : styles.labelClaro]}>
-          ¡Bienvenido!
-        </Text>
-        <Text style={[styles.subtitulo, modoOscuro ? styles.labelOscuro : styles.labelClaro]}>
-          Inicie sesión en su cuenta para continuar
-        </Text>
-        <View style={{ backgroundColor: '#ccc', width: 140, marginVertical: 20, alignSelf: 'flex-start', marginLeft: 25, }} />
+      {/* CONTENIDO DESPLAZABLE */}
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.containerCuerpo}>
 
-        <View style={styles.containerInput}>
-          <InputText
-            NombreLabel='Correo'
-            Valor={Correo}
-            onchangetext={setCorreo}
-            placeholder='Ingrese el correo'
-          />
+            <Text
+              style={[
+                styles.bienvenido,
+                modoOscuro ? styles.labelOscuro : styles.labelClaro,
+              ]}
+            >
+              ¡Bienvenido!
+            </Text>
+            <Text
+              style={[
+                styles.subtitulo,
+                modoOscuro ? styles.labelOscuro : styles.labelClaro,
+              ]}
+            >
+              Inicie sesión en su cuenta para continuar
+            </Text>
 
-          <InputText
-            NombreLabel='Contraseña'
-            Valor={Contraseña}
-            onchangetext={setContraseña}
-            placeholder='Ingrese su contraseña'
-            esPassword={true}
-          />
+            <View style={styles.containerInput}>
+              <InputText
+                NombreLabel="Correo"
+                Valor={Correo}
+                onchangetext={setCorreo}
+                placeholder="Ingrese el correo"
+              />
 
-          <TouchableOpacity onPress={() => setModalVisible(true)}>
-            <Text style={styles.label}>¿Olvidaste tu contraseña?</Text>
-          </TouchableOpacity>
+              <InputText
+                NombreLabel="Contraseña"
+                Valor={Contraseña}
+                onchangetext={setContraseña}
+                placeholder="Ingrese su contraseña"
+                esPassword={true}
+              />
 
-          <View style={styles.vboton}>
-            <Boton
-              nombreB='Iniciar'
-              onPress={() => IniciarLogin(auth, Correo, Contraseña, setUser)}
-            />
+              <TouchableOpacity onPress={() => setModalVisible(true)}>
+                <Text style={styles.label}>¿Olvidaste tu contraseña?</Text>
+              </TouchableOpacity>
+
+              <View style={styles.vboton}>
+                <Boton
+                  nombreB="Iniciar"
+                  onPress={() => IniciarLogin(auth, Correo, Contraseña, setUser)}
+                />
+              </View>
+
+              {/* Separador */}
+              <View style={styles.separatorContainer}>
+                <View style={styles.separator} />
+                <Text style={[
+                  styles.separatorText,
+                  modoOscuro ? styles.separatorTextOscuro : styles.separatorTextClaro
+                ]}>
+                  O
+                </Text>
+                <View style={styles.separator} />
+              </View>
+
+             
+
+              <Boton
+                nombreB="Registrarse"
+                onPress={() => navigation.navigate('Registro')}
+              />
+            </View>
           </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
-          <Boton
-            nombreB='Registrarse'
-            onPress={() => navigation.navigate('Registro')} />
-        </View>
-      </View>
-
+      {/* Modal recuperar contraseña */}
       <Modal
         visible={modalVisible}
         transparent
-        animationType='fade'
-        onRequestClose={() => setModalVisible(false)}>
-
+        animationType="fade"
+        onRequestClose={() => setModalVisible(false)}
+      >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContainer, modoOscuro ? styles.containerOscuro : styles.containerClaro]}>
-            <Text style={[styles.modalTitle, modoOscuro ? styles.labelOscuro : styles.labelClaro]}>Recuperar contraseña</Text>
+          <View
+            style={[
+              styles.modalContainer,
+              modoOscuro ? styles.containerOscuro : styles.containerClaro,
+            ]}
+          >
+            <Text
+              style={[
+                styles.modalTitle,
+                modoOscuro ? styles.labelOscuro : styles.labelClaro,
+              ]}
+            >
+              Recuperar contraseña
+            </Text>
             <TextInput
-              style={styles.modalInput}
+              style={[
+                styles.modalInput,
+                modoOscuro ? styles.modalInputOscuro : styles.modalInputClaro
+              ]}
               placeholder="Ingresa tu correo"
               keyboardType="email-address"
               autoCapitalize="none"
@@ -108,7 +174,9 @@ export default function Login({ navigation, setUser }) {
               placeholderTextColor="#666"
             />
             <Boton
-              nombreB={bloquearBoton ? `Espera ${tiempoRestante}s` : 'Enviar correo'}
+              nombreB={
+                bloquearBoton ? `Espera ${tiempoRestante}s` : 'Enviar correo'
+              }
               onPress={() =>
                 enviarRecuperacion(auth, correoReset, () => {
                   setBloquearBoton(true);
@@ -117,10 +185,16 @@ export default function Login({ navigation, setUser }) {
                   setCorreoReset('');
                 })
               }
-              ancho='270'
-              deshabilitado={bloquearBoton} />
+              ancho="270"
+              deshabilitado={bloquearBoton}
+            />
 
-            <Boton nombreB='Cancelar' onPress={() => setModalVisible(false)} backgroundColor="#ccc" ancho='270' />
+            <Boton
+              nombreB="Cancelar"
+              onPress={() => setModalVisible(false)}
+              backgroundColor="#ccc"
+              ancho="270"
+            />
           </View>
         </View>
       </Modal>
@@ -131,71 +205,117 @@ export default function Login({ navigation, setUser }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#fff'
+  },
+  // Banner con altura fija
+  bannerSafeArea: {
+    backgroundColor: '#F1A89B',
+    height: 250,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   containerBanner: {
     flex: 1,
     backgroundColor: '#F1A89B',
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
+    width: '100%',
   },
-  containerClaro: {
-    backgroundColor: '#fff',
+  keyboardAvoidingView: {
+    flex: 1,
   },
-  containerOscuro: {
-    backgroundColor: '#000',
+  scrollView: {
+    flex: 1,
   },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 20,
+  },
+  containerClaro: { backgroundColor: '#fff' },
+  containerOscuro: { backgroundColor: '#000' },
   containerCuerpo: {
-    flex: 2.5,
+    flex: 1,
     justifyContent: 'flex-start',
     alignItems: 'center',
-  },
-  Titulo: {
-    fontSize: 30,
-    fontWeight: 'bold',
-    paddingTop: 10,
-    paddingBottom: 40,
+    minHeight: 500,
   },
   label: {
     color: '#ED6D4A',
     marginLeft: 180,
     paddingBottom: 20,
-    paddingTop: 20
+    paddingTop: 20,
   },
   labelClaro: {
-    color: '#000',
+    color: '#000'
   },
   labelOscuro: {
-    color: '#eee',
+    color: '#eee'
   },
-  vboton: {
-    marginBottom: 5
+  vboton: { marginBottom: 5 },
+  
+  // Estilos para el botón de Google
+  googleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginVertical: 10,
+    width: '80%',
+    borderWidth: 1,
   },
-  logo: {
+  googleBtnClaro: {
+    backgroundColor: '#fff',
+    borderColor: '#ddd',
+  },
+  googleBtnOscuro: {
+    backgroundColor: '#333',
+    borderColor: '#555',
+  },
+  googleLogo: {
     width: 20,
     height: 20,
-    marginRight: 10,
+    marginRight: 12,
   },
-  button: {
+  googleText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  googleTextClaro: {
+    color: '#000',
+  },
+  googleTextOscuro: {
+    color: '#fff',
+  },
+  
+  // Separador
+  separatorContainer: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderRadius: 5,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
     alignItems: 'center',
-    width: 200,
-    height: 50,
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.39,
-    shadowRadius: 5.30,
-    elevation: 5,
+    marginVertical: 20,
+    width: '80%',
   },
+  separator: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#ddd',
+  },
+  separatorText: {
+    marginHorizontal: 10,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  separatorTextClaro: {
+    color: '#666',
+  },
+  separatorTextOscuro: {
+    color: '#999',
+  },
+  
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -209,21 +329,29 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 10,
+    marginBottom: 10
   },
   modalInput: {
     width: '100%',
     borderWidth: 1,
-    borderColor: '#ccc',
     borderRadius: 5,
     padding: 10,
     marginBottom: 15,
+  },
+  modalInputClaro: {
+    borderColor: '#ccc',
+    color: '#000',
+  },
+  modalInputOscuro: {
+    borderColor: '#555',
+    color: '#fff',
+    backgroundColor: '#333',
   },
   bannerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '50%'
+    width: '50%',
   },
   bannerTexto: {
     color: 'white',
@@ -231,38 +359,38 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginLeft: 10,
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 1, height: 1 },
+    textShadowOffset: {
+      width: 1,
+      height: 1
+    },
     textShadowRadius: 3,
     letterSpacing: 0.5,
-    marginTop: 30
+    marginTop: 30,
   },
   logoContainer: {
     width: 200,
     height: 200,
     overflow: 'hidden',
-    marginLeft: 170
-  },
-  logoImagen: {
-    width: '60%',
-    height: '60%',
-    resizeMode: 'contain',
+    marginBottom: 20,
   },
   bannerLogo: {
     width: 230,
-    height: 230,
+    height: 230
   },
-
   bienvenido: {
     fontSize: 28,
     fontWeight: 'bold',
     alignSelf: 'center',
-    marginTop: 40,
+    marginTop: 20,
   },
   subtitulo: {
     fontSize: 16,
     color: '#888',
     alignSelf: 'center',
-    marginBottom: 10,
+    marginBottom: 20,
   },
-
+  containerInput: {
+    width: '100%',
+    alignItems: 'center',
+  },
 });

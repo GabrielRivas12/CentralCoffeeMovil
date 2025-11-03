@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Keyboard, InteractionManager, FlatList, KeyboardAvoidingView, Platform, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Keyboard, FlatList, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { usarTema } from '../../Containers/TemaApp';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -9,7 +9,7 @@ import { Feather } from '@expo/vector-icons';
 import {
     generarChatId,
     crearChatSiNoExiste,
-    suscribirseAMensajes,
+    LeerMensajes,
     enviarMensaje,
     enviarReferencia
 } from '../../Containers/SalaChat';
@@ -22,6 +22,7 @@ export default function Chat({ navigation, route }) {
     const [mensaje, setMensaje] = useState('');
     const [mensajes, setMensajes] = useState([]);
     const [chatId, setChatId] = useState(null);
+    const [keyboardVisible, setKeyboardVisible] = useState(false);
 
     const flatListRef = useRef(null);
     const auth = getAuth();
@@ -45,10 +46,62 @@ export default function Chat({ navigation, route }) {
         setChatId(id);
 
         crearChatSiNoExiste(id, userId, otroUsuarioId);
-        const unsubscribe = suscribirseAMensajes(id, setMensajes);
+        const unsubscribe = LeerMensajes(id, setMensajes);
 
         return () => unsubscribe && unsubscribe();
     }, [userId, otroUsuarioId]);
+
+    // Manejo del teclado
+    useEffect(() => {
+        const keyboardDidShowListener = Keyboard.addListener(
+            'keyboardDidShow',
+            () => {
+                setKeyboardVisible(true);
+                scrollToBottom();
+            }
+        );
+        const keyboardDidHideListener = Keyboard.addListener(
+            'keyboardDidHide',
+            () => {
+                setKeyboardVisible(false);
+            }
+        );
+
+        return () => {
+            keyboardDidShowListener.remove();
+            keyboardDidHideListener.remove();
+        };
+    }, []);
+
+    // Scroll al final cuando hay nuevos mensajes
+    useEffect(() => {
+        if (mensajes.length > 0) {
+            scrollToBottom();
+        }
+    }, [mensajes.length]);
+
+    const scrollToBottom = () => {
+        if (flatListRef.current && mensajes.length > 0) {
+            setTimeout(() => {
+                flatListRef.current.scrollToEnd({ animated: true });
+            }, 100);
+        }
+    };
+
+    const handleEnviarMensaje = async () => {
+        if (mensaje.trim() && chatId) {
+            await enviarMensaje(chatId, userId, otroUsuarioId, mensaje.trim());
+            setMensaje('');
+        }
+    };
+
+    const handleEnviarReferencia = async () => {
+        if (chatId) {
+            await enviarReferencia(chatId, userId, otroUsuarioId, referenciaPendiente);
+            setReferenciaPendiente(null);
+            scrollToBottom();
+        }
+    };
 
     return (
         <View style={[styles.container, { backgroundColor: modoOscuro ? '#000' : '#fff' }]}>
@@ -58,122 +111,110 @@ export default function Chat({ navigation, route }) {
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     keyboardVerticalOffset={95}
                 >
-                    <TouchableWithoutFeedback
-                        onPress={() => {
-                            Keyboard.dismiss();
-                            if (flatListRef.current) {
-                                InteractionManager.runAfterInteractions(() => {
-                                    flatListRef.current.scrollToOffset({ offset: 0, animated: true });
-                                });
-                            }
-                        }}
-                        style={{ flex: 1 }}
-                    >
-                        <View style={{ flex: 1 }}>
+                    <View style={{ flex: 1 }}>
 
-                            <View style={[styles.bannerCifrado, modoOscuro && { backgroundColor: '#2a2a2a', borderColor: '#555' }]}>
-                                <Feather name="lock" size={16} color={modoOscuro ? '#ccc' : '#555'} style={{ marginRight: 6 }} />
-                                <Text style={[styles.bannerTexto, modoOscuro && { color: '#ccc' }]}>
-                                    Mensajes cifrados de extremo a extremo
-                                </Text>
-                            </View>
+                        <View style={[styles.bannerCifrado, modoOscuro && { backgroundColor: '#2a2a2a', borderColor: '#555' }]}>
+                            <Feather name="lock" size={16} color={modoOscuro ? '#ccc' : '#555'} style={{ marginRight: 6 }} />
+                            <Text style={[styles.bannerTexto, modoOscuro && { color: '#ccc' }]}>
+                                Mensajes cifrados de extremo a extremo
+                            </Text>
+                        </View>
 
-                            <FlatList
-                                data={mensajes.slice().reverse()}
-                                inverted
-                                renderItem={({ item }) => (
-                                    <View
-                                        style={[
-                                            styles.mensajeContainer,
-                                            item.de === userId
-                                                ? styles.mensajePropio
-                                                : modoOscuro
-                                                    ? styles.mensajeOtroOscuro
-                                                    : styles.mensajeOtroClaro
-                                        ]}
-                                    >
-                                        <View style={{ maxWidth: '100%' }}>
-                                            <Text
-                                                style={[
-                                                    styles.textoMensaje,
-                                                    item.de === userId
-                                                        ? { color: '#000' }
-                                                        : modoOscuro
-                                                            ? { color: '#fff' }
-                                                            : { color: '#000' }
-                                                ]}
-                                            >
-                                                {item.texto}
-                                            </Text>
-                                            <Text
-                                                style={[
-                                                    styles.horaMensaje,
-                                                    item.de === userId
-                                                        ? { alignSelf: 'flex-end', color: '#555' }
-                                                        : { alignSelf: 'flex-start', color: modoOscuro ? '#aaa' : '#555' }
-                                                ]}
-                                            >
-                                                {formatHora(item.timestamp)}
-                                            </Text>
-                                        </View>
-                                    </View>
-                                )}
-                                keyExtractor={(item) => item.id}
-                                contentContainerStyle={{ paddingVertical: 10, paddingHorizontal: 10, flexGrow: 1 }}
-                                style={{ flex: 1 }}
-                                ref={flatListRef}
-                                keyboardShouldPersistTaps="handled"
-                            />
-
-                            {/* Referencia pendiente */}
-                            {referenciaPendiente && (
-                                <View style={[styles.referenciaPreview, modoOscuro && { backgroundColor: '#2a2a2a', borderLeftColor: '#ED6D4A' }]}>
-                                    <Text style={[styles.referenciaTitulo, modoOscuro && { color: '#fff' }]}>{referenciaPendiente.titulo}</Text>
-                                    <Text style={{ color: modoOscuro ? '#ccc' : '#000' }}>🫘 Tipo: {referenciaPendiente.tipoCafe}</Text>
-                                    <Text style={{ color: modoOscuro ? '#ccc' : '#000' }}>📦 Cantidad: {referenciaPendiente.cantidadProduccion}</Text>
-                                    <Text style={{ color: modoOscuro ? '#ccc' : '#000' }}>💲 Precio/libra: {referenciaPendiente.ofertaLibra}</Text>
-
-                                    <View style={styles.botonesReferencia}>
-                                        <TouchableOpacity
-                                            style={[styles.botonEnviar, { backgroundColor: '#f16a34ff' }]}
-                                            onPress={async () => {
-                                                await enviarReferencia(chatId, userId, otroUsuarioId, referenciaPendiente);
-                                                setReferenciaPendiente(null);
-                                            }}
+                        <FlatList
+                            ref={flatListRef}
+                            data={mensajes}
+                            renderItem={({ item }) => (
+                                <View
+                                    style={[
+                                        styles.mensajeContainer,
+                                        item.de === userId
+                                            ? styles.mensajePropio
+                                            : modoOscuro
+                                                ? styles.mensajeOtroOscuro
+                                                : styles.mensajeOtroClaro
+                                    ]}
+                                >
+                                    <View style={{ maxWidth: '100%' }}>
+                                        <Text
+                                            style={[
+                                                styles.textoMensaje,
+                                                item.de === userId
+                                                    ? { color: '#000' }
+                                                    : modoOscuro
+                                                        ? { color: '#fff' }
+                                                        : { color: '#000' }
+                                            ]}
                                         >
-                                            <Text style={styles.botonTexto}>Enviar</Text>
-                                        </TouchableOpacity>
-
-                                        <TouchableOpacity
-                                            style={[styles.botonEnviar, { backgroundColor: '#545454' }]}
-                                            onPress={() => setReferenciaPendiente(null)}
+                                            {item.texto}
+                                        </Text>
+                                        <Text
+                                            style={[
+                                                styles.horaMensaje,
+                                                item.de === userId
+                                                    ? { alignSelf: 'flex-end', color: '#555' }
+                                                    : { alignSelf: 'flex-start', color: modoOscuro ? '#aaa' : '#555' }
+                                            ]}
                                         >
-                                            <Text style={styles.botonTexto}>Cancelar</Text>
-                                        </TouchableOpacity>
+                                            {formatHora(item.timestamp)}
+                                        </Text>
                                     </View>
                                 </View>
                             )}
+                            keyExtractor={(item) => item.id}
+                            contentContainerStyle={{ paddingVertical: 10, paddingHorizontal: 10, flexGrow: 1 }}
+                            style={{ flex: 1 }}
+                            showsVerticalScrollIndicator={true}
+                            onScrollBeginDrag={() => Keyboard.dismiss()}
+                            removeClippedSubviews={false}
+                        />
 
-                            {/* Input de mensaje */}
-                            <View style={[styles.inputContainer, modoOscuro && { backgroundColor: '#1a1a1a', borderTopColor: '#333', borderColor: '#333' }]}>
-                                <TextInput
-                                    style={[styles.input, modoOscuro && { backgroundColor: '#333', color: '#fff', borderColor: '#555' }]}
-                                    value={mensaje}
-                                    onChangeText={setMensaje}
-                                    placeholder="Escribe un mensaje..."
-                                    placeholderTextColor={modoOscuro ? '#aaa' : '#999'}
-                                    multiline
-                                />
-                                <TouchableOpacity
-                                    style={styles.botonEnviar}
-                                    onPress={() => enviarMensaje(chatId, userId, otroUsuarioId, mensaje).then(() => setMensaje(''))}
-                                >
-                                    <FontAwesome name="send-o" size={24} color="black" />
-                                </TouchableOpacity>
+                        {/* Referencia pendiente */}
+                        {referenciaPendiente && (
+                            <View style={[styles.referenciaPreview, modoOscuro && { backgroundColor: '#2a2a2a', borderLeftColor: '#ED6D4A' }]}>
+                                <Text style={[styles.referenciaTitulo, modoOscuro && { color: '#fff' }]}>{referenciaPendiente.titulo}</Text>
+                                <Text style={{ color: modoOscuro ? '#ccc' : '#000' }}>🫘 Tipo: {referenciaPendiente.tipoCafe}</Text>
+                                <Text style={{ color: modoOscuro ? '#ccc' : '#000' }}>📦 Cantidad: {referenciaPendiente.cantidadProduccion}</Text>
+                                <Text style={{ color: modoOscuro ? '#ccc' : '#000' }}>💲 Precio/libra: {referenciaPendiente.ofertaLibra}</Text>
+
+                                <View style={styles.botonesReferencia}>
+                                    <TouchableOpacity
+                                        style={[styles.botonEnviar, { backgroundColor: '#f16a34ff' }]}
+                                        onPress={handleEnviarReferencia}
+                                    >
+                                        <Text style={styles.botonTexto}>Enviar</Text>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        style={[styles.botonEnviar, { backgroundColor: '#545454' }]}
+                                        onPress={() => setReferenciaPendiente(null)}
+                                    >
+                                        <Text style={styles.botonTexto}>Cancelar</Text>
+                                    </TouchableOpacity>
+                                </View>
                             </View>
+                        )}
 
+                        <View style={[styles.inputContainer, modoOscuro && { backgroundColor: '#1a1a1a', borderTopColor: '#333', borderColor: '#333' }]}>
+                            <TextInput
+                                style={[styles.input, modoOscuro && { backgroundColor: '#333', color: '#fff', borderColor: '#555' }]}
+                                value={mensaje}
+                                onChangeText={setMensaje}
+                                placeholder="Escribe un mensaje..."
+                                placeholderTextColor={modoOscuro ? '#aaa' : '#999'}
+                                multiline
+                                onSubmitEditing={handleEnviarMensaje}
+                                returnKeyType="send"
+                            />
+                            <TouchableOpacity
+                                style={styles.botonEnviar}
+                                onPress={handleEnviarMensaje}
+                                disabled={!mensaje.trim()}
+                            >
+                                <FontAwesome name="send-o" size={24} color="black" />
+                            </TouchableOpacity>
                         </View>
-                    </TouchableWithoutFeedback>
+
+                    </View>
                 </KeyboardAvoidingView>
             </SafeAreaView>
         </View>
